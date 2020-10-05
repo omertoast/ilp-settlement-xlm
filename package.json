@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/omrtozd/settlement-xlm#readme",
   "dependencies": {
+    "@types/debug": "^4.1.5",
+    "@types/node-fetch": "^2.5.7",
     "debug": "^4.2.0",
     "ilp-settlement-core": "^0.1.1",
     "node-fetch": "^2.6.1"
