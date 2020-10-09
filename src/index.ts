@@ -2,7 +2,18 @@ import debug from 'debug'
 import { AccountServices, SettlementEngine} from 'ilp-settlement-core'
 import BigNumber from 'bignumber.js'
 import fetch from 'node-fetch'
-import StellarSdk from 'stellar-sdk'
+import {
+  Account,
+  Keypair,
+  Server,
+  AccountResponse,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+  Operation,
+  Asset,
+  Horizon
+} from 'stellar-sdk'
 import { randomBytes } from 'crypto'
 
 const log = debug('settlement-xlm')
@@ -30,16 +41,17 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
   creditSettlement
 }) => {
   /** Generate XLM keypair */
-  const pair = StellarSdk.Keypair.fromSecret(opts.xlmSecret) || (await generateTestnetAccount())
+  const pair = Keypair.fromSecret(opts.xlmSecret) || (await generateTestnetAccount())
 
   /** Assign XLM keypair variables seperately to use in the future processes */
-  const xlmSecret = pair.secretKey
-  let xlmAddress = pair.publicKey
+  let xlmKeypair = pair
+  let xlmSecret = xlmKeypair.secretKey()
+  let xlmAddress = xlmKeypair.publicKey()
 
   /** Lock if a transaction is currently being submitted */
   let pendingTransaction = false
 
-  const stellarClient = new StellarSdk.Server("https://horizon-testnet.stellar.org")
+  const stellarClient = new Server("https://horizon-testnet.stellar.org")
 
   /** Mapping of destinationTag -> accountId to correlate incoming payments */
   const incomingPaymentTags = new Map<number, string>()
@@ -82,7 +94,55 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
         type: 'paymentDetails'
       })
         .then(response =>
-          isPaymentDetails)
+          isPaymentDetails(response)
+          ? response
+          : log (`Failed to settle: Recieved invalid payment details: ${details}`)
+        )
+        .catch(err => log(`Failed to settle: Error fetching payment details: ${details}`, err))
+      if (!paymentDetails){
+        return new BigNumber(0)
+      }
+      
+      let account = await stellarClient.loadAccount(xlmAddress)
+
+      let transaction: any
+      try {
+        let transaction = new TransactionBuilder(account,{
+          fee: BASE_FEE,
+          networkPassphrase = Networks.TESTNET
+        })
+        .addOperation(Operation.payment({
+          destination: paymentDetails.xlmAddress,
+          asset: Asset.native(),
+          amount: amount.toString()
+        }))
+        .setTimeout(0)
+        .build()
+      } catch(err) {
+        log(`Failed to settle: Error preparing XLM payment ${details}`, err)
+        return new BigNumber(0)
+      }
+
+      // Ensure only a single settlement occurs at once
+      if (pendingTransaction) {
+        log(`Failed to settle: transaction already in progress: ${details}`)
+        return new BigNumber(0)
+      }
+      // Apply lock for pending transaction
+      pendingTransaction = true
+
+      try {
+        let singedTransaction = transaction.sign(xlmKeypair)
+
+        await stellarClient.submitTransaction(singedTransaction)
+        amount : new BigNumber(0)
+      } catch(err) {
+        log(`Failed to settle: Transaction error: ${details}`, err)
+        return amount // For safety, assume transaction was applied (return full amount was settled)
+      } finally {
+        pendingTransaction = false
+      }
+      }
     }
   }
 }
@@ -90,7 +150,7 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
 
 /** Generate a secret for a new, prefunded XRP account */
 export const generateTestnetAccount = async () => {
-  const pair = StellarSdk.Keypair.random()
+  const pair = Keypair.random()
 
   try {
     const response = await fetch(
