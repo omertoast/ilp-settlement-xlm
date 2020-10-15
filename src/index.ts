@@ -14,6 +14,7 @@ import {
   Asset,
   Horizon
 } from 'stellar-sdk'
+import { Memo } from 'stellar-base'
 import { randomBytes } from 'crypto'
 
 const log = debug('settlement-xlm')
@@ -51,29 +52,30 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
   /** Lock if a transaction is currently being submitted */
   let pendingTransaction = false
 
-  const stellarClient = new Server("https://horizon-testnet.stellar.org")
+  const stellarClient = opts.stellarClient || new Server(opts.stellarTestnetUrl || TESTNET_STELLAR_URL)
 
-  /** Mapping of destinationTag -> accountId to correlate incoming payments */
-  const incomingPaymentTags = new Map<number, string>()
+  /** Mapping of memo -> accountId to correlate incoming payments */
+  const incomingPaymentMemos = new Map<Memo, string>()
 
   /** Set of timeout IDs to cleanup when exiting */
   const pendingTimers = new Set<NodeJS.Timeout>()
 
+  const paymentMemo: Memo
+
   const self: XlmSettlementEngine = {
     async handleMessage(accountID, message) {
       if(message.type && message.type === 'paymentDetails') {
-        const destinationTag = randomBytes(4).readUInt32BE(0)
-        if(incomingPaymentTags.has(destinationTag)) {
+        if(incomingPaymentMemos.has(paymentMemo)) {
           throw new Error('Failed to generate new destination tag')
         }
 
-        incomingPaymentTags.set(destinationTag, accountID)
+        incomingPaymentMemos.set(paymentMemo, accountID)
 
         //Clean up tags after 5 mins to prevent memory leak
-        pendingTimers.add(setTimeout(() => incomingPaymentTags.delete(destinationTag), 5 * 60000))
+        pendingTimers.add(setTimeout(() => incomingPaymentMemos.delete(paymentMemo), 5 * 60000))
         
         return {
-          destinationTag,
+          paymentMemo,
           xlmAddress
         }
       } else {
@@ -108,6 +110,7 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
       let transaction: any
       try {
         let transaction = new TransactionBuilder(account,{
+          memo: paymentDetails.paymentMemo,
           fee: BASE_FEE,
           networkPassphrase = Networks.TESTNET
         })
@@ -142,7 +145,14 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
       } finally {
         pendingTransaction = false
       }
-      }
+    },
+    
+    async handleTransaction(tx) {
+
+    },
+    
+    async disconnect() {
+      
     }
   }
 }
@@ -169,7 +179,7 @@ export const generateTestnetAccount = async () => {
 
 export interface PaymentDetails {
   xlmAddress: string
-  destinationTag: number
+  paymentMemo: Memo
 }
 
 const MAX_UINT_32 = 4294967295
@@ -177,6 +187,4 @@ const MAX_UINT_32 = 4294967295
 export const isPaymentDetails = (o: any): o is PaymentDetails =>
   typeof o === 'object' &&
   typeof o.xlmAddress === 'string' &&
-  Number.isInteger(o.destinationTag) &&
-  o.destinationTag >= 0 &&
-  o.destinationTag <= MAX_UINT_32
+  typeof o.paymentMemo === 'string'
