@@ -19,7 +19,6 @@ async function run() {
 
 	process.on('SIGINT', async () => {
 		await shutdown()
-
 		if (store.disconnect) {
 			await store.disconnect()
 		}

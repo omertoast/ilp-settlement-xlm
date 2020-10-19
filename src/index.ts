@@ -24,7 +24,7 @@ export const TESTNET_STELLAR_URL = 'https://horizon-testnet.stellar.org'
 export interface XlmEngineOpts {
   xlmSecret?: string
   stellarTestnetUrl?: string
-  stellarClient?: string
+  stellarClient?: Server
 }
 
 export interface XlmSettlementEngine extends SettlementEngine {
@@ -42,12 +42,13 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
   creditSettlement
 }) => {
   /** Generate XLM keypair */
-  const pair = Keypair.fromSecret(opts.xlmSecret) || (await generateTestnetAccount())
 
+  const xlmSecret = opts.xlmSecret || (await generateTestnetAccount())
+  
   /** Assign XLM keypair variables seperately to use in the future processes */
-  let xlmKeypair = pair
-  let xlmSecret = xlmKeypair.secretKey()
-  let xlmAddress = xlmKeypair.publicKey()
+  const xlmKeypair = Keypair.fromSecret(xlmSecret)
+  
+  const xlmAddress = xlmKeypair.publicKey()
 
   /** Lock if a transaction is currently being submitted */
   let pendingTransaction = false
@@ -60,10 +61,10 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
   /** Set of timeout IDs to cleanup when exiting */
   const pendingTimers = new Set<NodeJS.Timeout>()
 
-  const paymentMemo: Memo
-
   const self: XlmSettlementEngine = {
     async handleMessage(accountID, message) {
+      /** This number generator is too stupid but i'm not too clever either, TODO change it later hehe */
+      const paymentMemo = new Memo('id', Date.now().toString()) 
       if(message.type && message.type === 'paymentDetails') {
         if(incomingPaymentMemos.has(paymentMemo)) {
           throw new Error('Failed to generate new destination tag')
@@ -112,7 +113,7 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
         let transaction = new TransactionBuilder(account,{
           memo: paymentDetails.paymentMemo,
           fee: BASE_FEE,
-          networkPassphrase = Networks.TESTNET
+          networkPassphrase: Networks.TESTNET
         })
         .addOperation(Operation.payment({
           destination: paymentDetails.xlmAddress,
@@ -155,6 +156,8 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
       
     }
   }
+
+  return self
 }
 
 
@@ -171,9 +174,9 @@ export const generateTestnetAccount = async () => {
     const responseJSON = await response.json();
     console.log("SUCCESS! You have a new account :)\n", responseJSON);
 
-    return pair
+    return pair.secret()
   } catch (e) {
-    console.error("ERROR!", e);
+    throw new Error('Failed to generate new XRP testnet account.')
   }
 }
 
@@ -182,9 +185,8 @@ export interface PaymentDetails {
   paymentMemo: Memo
 }
 
-const MAX_UINT_32 = 4294967295
-
+/** These requirements are not enough probably */
 export const isPaymentDetails = (o: any): o is PaymentDetails =>
   typeof o === 'object' &&
   typeof o.xlmAddress === 'string' &&
-  typeof o.paymentMemo === 'string'
+  typeof o.paymentMemo.value === 'string' 
