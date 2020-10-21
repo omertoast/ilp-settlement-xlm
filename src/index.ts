@@ -148,14 +148,27 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
       }
     },
     
-    async handleTransaction(tx) {
-
+    async handleTransaction(txResponse) {
+      txResponse. 
+      
+      const accountId = incomingPaymentMemos.get(txResponse.Memo)
+      if (!accountId) {
+        return
+      }
+      
+      const txHash = txResponse.
+      creditSettlement(accountId, amount, txResponse)
     },
     
     async disconnect() {
       
     }
   }
+
+  stellarClient.payments()
+    .forAccount(xlmAddress)
+    .cursor('now')
+    .stream({onmessage: self.handleTransaction})
 
   return self
 }
