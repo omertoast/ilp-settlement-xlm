@@ -1,26 +1,38 @@
 {
   "name": "settlement-xlm",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Settle Interledger payments using on-ledger XLM transfers",
-  "main": "index.js",
+  "bin": {
+    "ilp-settlement-xlm": "./bin/run.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "bin",
+    "dist"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "./bin/run.js",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/omrtozd/settlement-xlm.git"
   },
-  "author": "",
+  "author": "@omrtozd <omrtozd@gmail.com>",
   "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/omrtozd/settlement-xlm/issues"
   },
   "homepage": "https://github.com/omrtozd/settlement-xlm#readme",
   "dependencies": {
-    "@types/debug": "^4.1.5",
-    "@types/node-fetch": "^2.5.7",
     "debug": "^4.2.0",
     "ilp-settlement-core": "^0.1.1",
-    "node-fetch": "^2.6.1"
+    "node-fetch": "^2.6.1",
+    "stellar-sdk": "^6.2.0"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.5",
+    "@types/node-fetch": "^2.5.7",
+    "typescript": "^4.0.3"
   }
 }

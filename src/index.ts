@@ -3,19 +3,16 @@ import { AccountServices, SettlementEngine} from 'ilp-settlement-core'
 import BigNumber from 'bignumber.js'
 import fetch from 'node-fetch'
 import {
-  Account,
   Keypair,
   Server,
-  AccountResponse,
   TransactionBuilder,
   BASE_FEE,
   Networks,
   Operation,
   Asset,
-  Horizon
 } from 'stellar-sdk'
-import { Memo } from 'stellar-base'
-import { randomBytes } from 'crypto'
+import { Memo, MemoReturn, } from 'stellar-base'
+
 
 const log = debug('settlement-xlm')
 
@@ -64,10 +61,10 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
   const self: XlmSettlementEngine = {
     async handleMessage(accountID, message) {
       /** This number generator is too stupid but i'm not too clever either, TODO change it later hehe */
-      const paymentMemo = new Memo('id', Date.now().toString()) 
+      const paymentMemo = new Memo('id', Date.now().toString())
       if(message.type && message.type === 'paymentDetails') {
         if(incomingPaymentMemos.has(paymentMemo)) {
-          throw new Error('Failed to generate new destination tag')
+          throw new Error('Failed to generate new memo')
         }
 
         incomingPaymentMemos.set(paymentMemo, accountID)
@@ -149,23 +146,32 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
     },
     
     async handleTransaction(txResponse) {
-      txResponse. 
+      if (txResponse.to !== xlmAddress) {
+        return
+      }
+
+      const amount = new BigNumber(txResponse.amount).shiftedBy(-7)
+      if (!amount.isGreaterThan(0)) {
+        return
+      }
       
       const accountId = incomingPaymentMemos.get(txResponse.Memo)
       if (!accountId) {
         return
       }
       
-      const txHash = txResponse.
+      const txHash = txResponse.transaction_hash
+      log(`Received incoming XLM payment: xlm=${amount} account=${accountId} txHash=${txHash}`)
       creditSettlement(accountId, amount, txResponse)
     },
     
     async disconnect() {
-      
+      pendingTimers.forEach(timer => clearTimeout(timer))
+      paymentStream()
     }
   }
 
-  stellarClient.payments()
+  const paymentStream = stellarClient.payments()
     .forAccount(xlmAddress)
     .cursor('now')
     .stream({onmessage: self.handleTransaction})
@@ -174,7 +180,7 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
 }
 
 
-/** Generate a secret for a new, prefunded XRP account */
+/** Generate a secret for a new, prefunded XLM account */
 export const generateTestnetAccount = async () => {
   const pair = Keypair.random()
 
@@ -189,7 +195,7 @@ export const generateTestnetAccount = async () => {
 
     return pair.secret()
   } catch (e) {
-    throw new Error('Failed to generate new XRP testnet account.')
+    throw new Error('Failed to generate new XLM testnet account.')
   }
 }
 
@@ -199,7 +205,14 @@ export interface PaymentDetails {
 }
 
 /** These requirements are not enough probably */
-export const isPaymentDetails = (o: any): o is PaymentDetails =>
-  typeof o === 'object' &&
-  typeof o.xlmAddress === 'string' &&
-  typeof o.paymentMemo.value === 'string' 
+export const isPaymentDetails = (o: any) => {
+  if (o !== 'object') return false
+  if (o.xlmAddress !== 'string') return false
+
+  try {
+    new Memo(o.paymentMemo._type, o.paymentMemo._value)
+    return true
+  } catch(e) {
+    return false
+  }
+}
