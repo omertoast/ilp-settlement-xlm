@@ -155,7 +155,7 @@ export const creatEngine = (opts: XlmEngineOpts = {}): ConnectXlmSettlementEngin
         return
       }
       
-      const accountId = incomingPaymentMemos.get(txResponse.Memo)
+      const accountId = incomingPaymentMemos.get(txResponse.memo)
       if (!accountId) {
         return
       }
@@ -192,6 +192,7 @@ export const generateTestnetAccount = async () => {
     );
     const responseJSON = await response.json();
     console.log("SUCCESS! You have a new account :)\n", responseJSON);
+    console.log(pair.publicKey());
 
     return pair.secret()
   } catch (e) {
@@ -204,7 +205,6 @@ export interface PaymentDetails {
   paymentMemo: Memo
 }
 
-/** These requirements are not enough probably */
 export const isPaymentDetails = (o: any) => {
   if (o !== 'object') return false
   if (o.xlmAddress !== 'string') return false
