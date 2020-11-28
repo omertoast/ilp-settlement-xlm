@@ -1,8 +1,8 @@
 import { startServer, connectRedis} from 'ilp-settlement-core'
-import { creatEngine } from '.'
+import { createEngine } from '.'
 
 async function run() {
-	const engine = creatEngine({
+	const engine = createEngine({
 		xlmSecret: process.env.XLM_SECRET,
 		stellarTestnetUrl: process.env.STELLAR_TESTNET_URL
 	})
