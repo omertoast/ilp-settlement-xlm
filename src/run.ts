@@ -1,5 +1,5 @@
 import { startServer, connectRedis} from 'ilp-settlement-core'
-import { createEngine } from '.'
+import { createEngine } from './index.js'
 
 async function run() {
 	const engine = createEngine({
