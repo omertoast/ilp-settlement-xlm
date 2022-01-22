@@ -28,7 +28,7 @@
   "dependencies": {
     "debug": "^4.2.0",
     "ilp-settlement-core": "^0.1.1",
-    "node-fetch": "^2.6.1",
+    "node-fetch": "^3.1.1",
     "stellar-sdk": "^8.2.3"
   },
   "devDependencies": {
